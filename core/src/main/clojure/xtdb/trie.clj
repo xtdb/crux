@@ -14,7 +14,8 @@
            (org.apache.arrow.vector.types.pojo ArrowType$Union Field Schema)
            xtdb.BufferPool
            (xtdb.trie DataRel ISegment MemoryHashTrie MergePlanNode Trie Trie$Key)
-           (xtdb.util TemporalBounds TemporalDimension)))
+           (xtdb.util TemporalBounds TemporalDimension)
+           xtdb.log.proto.AddedTrie))
 
 (defn ->added-trie ^xtdb.log.proto.AddedTrie [table-name, trie-key, ^long data-file-size]
   (.. (AddedTrie/newBuilder)
