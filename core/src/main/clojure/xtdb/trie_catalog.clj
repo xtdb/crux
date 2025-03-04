@@ -1,11 +1,11 @@
 (ns xtdb.trie-catalog
   (:require [integrant.core :as ig]
             [xtdb.trie :as trie]
-            [xtdb.util :as util])
+            [xtdb.util :as util]
+            [xtdb.table-catalog :as table-cat])
   (:import [java.util Map]
            [java.util.concurrent ConcurrentHashMap]
            (xtdb BufferPool)
-           xtdb.api.storage.ObjectStore$StoredObject
            xtdb.catalog.BlockCatalog
            xtdb.log.proto.AddedTrie))
 
@@ -65,13 +65,6 @@
        (if v
          (cons v (map-while f xs))
          (cons x xs))))))
-
-(defn ->added-trie ^xtdb.log.proto.AddedTrie [table-name, trie-key, ^long data-file-size]
-  (.. (AddedTrie/newBuilder)
-      (setTableName table-name)
-      (setTrieKey trie-key)
-      (setDataFileSize data-file-size)
-      (build)))
 
 (defn- stale-block-idx? [tries ^long block-idx]
   (when-let [{^long other-block-idx :block-idx} (first tries)]
@@ -227,17 +220,16 @@
 
 (defmethod ig/prep-key :xtdb/trie-catalog [_ opts]
   (into {:buffer-pool (ig/ref :xtdb/buffer-pool)
-         :block-cat (ig/ref :xtdb/block-catalog)}
+         :block-cat (ig/ref :xtdb/block-catalog)
+         :table-cat (ig/ref :xtdb/table-catalog)}
         opts))
 
 (defmethod ig/init-key :xtdb/trie-catalog [_ {:keys [^BufferPool buffer-pool, ^BlockCatalog block-cat]}]
-  (doto (TrieCatalog. (ConcurrentHashMap.) *file-size-target*)
-    (.addTries (for [table-name (.getAllTableNames block-cat)
-                     ^ObjectStore$StoredObject obj (.listAllObjects buffer-pool (trie/->table-meta-dir table-name))
-                     :let [file-name (str (.getFileName (.getKey obj)))
-                           [_ trie-key] (re-matches #"(.+)\.arrow" file-name)]
-                     :when trie-key]
-                 (->added-trie table-name trie-key (.getSize obj))))))
+  (let [[_ table->table-block] (table-cat/load-tables-to-metadata buffer-pool block-cat)]
+    (doto (TrieCatalog. (ConcurrentHashMap.) *file-size-target*)
+      (.addTries (for [[_ {:keys [current-tries]}] table->table-block
+                       current-trie current-tries]
+                   current-trie)))))
 
 (defn trie-catalog ^xtdb.trie.TrieCatalog [node]
   (util/component node :xtdb/trie-catalog))
