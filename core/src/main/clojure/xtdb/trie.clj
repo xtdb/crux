@@ -16,6 +16,13 @@
            (xtdb.trie DataRel ISegment MemoryHashTrie MergePlanNode Trie Trie$Key)
            (xtdb.util TemporalBounds TemporalDimension)))
 
+(defn ->added-trie ^xtdb.log.proto.AddedTrie [table-name, trie-key, ^long data-file-size]
+  (.. (AddedTrie/newBuilder)
+      (setTableName table-name)
+      (setTrieKey trie-key)
+      (setDataFileSize data-file-size)
+      (build)))
+
 (defn ->trie-key [^long level, ^LocalDate recency, ^bytes part, ^long block-idx]
   (str (Trie$Key. level recency (some-> part ByteArrayList/from) block-idx)))
 
