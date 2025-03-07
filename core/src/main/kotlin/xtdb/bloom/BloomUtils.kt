@@ -1,6 +1,7 @@
 package xtdb.bloom
 
 import org.apache.arrow.memory.util.ArrowBufPointer
+import org.roaringbitmap.RoaringBitmap
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap
 import xtdb.arrow.VectorReader
 import xtdb.arrow.VectorWriter
@@ -22,9 +23,11 @@ object BloomUtils {
     }
 
     @JvmStatic
-    fun bloomContains(bloomRdr: VectorReader, idx: Int, hashes: IntArray): Boolean {
-        val bloom = bloomToBitmap(bloomRdr, idx)
+    fun bloomContains(bloomRdr: VectorReader, idx: Int, hashes: IntArray) =
+        bloomContains(bloomToBitmap(bloomRdr, idx), hashes)
 
+    @JvmStatic
+    fun bloomContains(bloom: ImmutableRoaringBitmap, hashes: IntArray): Boolean {
         for (i in hashes.indices) {
             if (!bloom.contains(hashes[i])) {
                 return false
@@ -53,6 +56,20 @@ object BloomUtils {
     }
 
     @JvmStatic
+    fun ByteBufferToRoaringBloom(buf: ByteBuffer): RoaringBitmap {
+        val bloom = RoaringBitmap()
+        bloom.deserialize(buf)
+        return bloom
+    }
+
+    fun roaringBloomToByteBuffer(bloom: RoaringBitmap): ByteBuffer {
+        val buf = ByteBuffer.allocate(bloom.serializedSizeInBytes())
+        bloom.serialize(buf)
+        buf.clear()
+        return buf
+    }
+
+    @JvmStatic
     fun writeBloom(bloomWtr: VectorWriter, col: VectorReader) {
         val bloomBuilder = BloomBuilder.create(col)
         for (idx in 0 until col.valueCount) {
@@ -62,9 +79,6 @@ object BloomUtils {
         }
 
         val bloom = bloomBuilder.build()
-        val buf = ByteBuffer.allocate(bloom.serializedSizeInBytes())
-        bloom.serialize(buf)
-        buf.clear()
-        bloomWtr.writeBytes(buf)
+        bloomWtr.writeBytes(roaringBloomToByteBuffer(bloom))
     }
 }
